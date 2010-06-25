@@ -20,7 +20,9 @@ if ($.ui.version) {
 
 //Helper functions and ui object
 $.extend($.ui, {
+	
 	version: "@VERSION",
+	touch: /(iPhone|iPad|Android)/.test(navigator.userAgent),
 
 	// $.ui.plugin is deprecated.  Use the proxy pattern instead.
 	plugin: {

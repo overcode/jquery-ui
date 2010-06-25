@@ -125,7 +125,7 @@ $.widget("ui.resizable", $.ui.mouse, {
 			for(var i in this.handles) {
 
 				if(this.handles[i].constructor == String)
-					this.handles[i] = $(this.handles[i], this.element).show();
+					this.handles[i] = $(this.handles[i], this.element).css('display', 'block'); // TODO: this was set to show() previously, but this caused touch events not to fire for whatever reason
 
 				//Apply pad to wrapper element, needed to fix axis position (textarea, inputs, scrolls)
 				if (this.elementIsWrapper && this.originalElement[0].nodeName.match(/textarea|input|select|button/i)) {
@@ -161,7 +161,7 @@ $.widget("ui.resizable", $.ui.mouse, {
 			.disableSelection();
 
 		//Matching axis name
-		this._handles.mouseover(function() {
+		$.ui.touch && this._handles.mouseover(function() {
 			if (!self.resizing) {
 				if (this.className)
 					var axis = this.className.match(/ui-resizable-(se|sw|ne|nw|n|e|s|w)/i);
@@ -227,6 +227,7 @@ $.widget("ui.resizable", $.ui.mouse, {
 		for (var i in this.handles) {
 			if ($(this.handles[i])[0] == event.target) {
 				handle = true;
+				$.ui.touch && $(this.handles[i]).trigger('mouseover', event); // resizable uses mouseover to determine the handle axis, this won't work with touch interfaces, so this patch is needed
 			}
 		}
 

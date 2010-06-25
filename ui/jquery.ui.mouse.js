@@ -18,12 +18,40 @@ $.widget("ui.mouse", {
 		distance: 1,
 		delay: 0
 	},
+	_eventNames: {
+		start: 'mousedown',
+		drag: 'mousemove',
+		stop: 'mouseup'
+	},
+	_iPhoneEvent: function(event) {
+
+		// unfortunately, touchend doesn't provide any information about the mouse position, so take
+		// the touchmove event from before for that
+		if(event.type == 'touchend')
+			event = $.extend(event, this._prevEvent);
+
+		// if we got a single touch, make dragging possible by simply copying the touch page information over to the
+		// generic event information
+		var t = (event.originalEvent || event).touches;
+		return !$.ui.touch || (t.length == 1 ? (this._prevEvent = $.extend(event, {
+				target: t[0].target.nodeType != 1 ? t[0].target.parentNode : t[0].target, // iOS+jQuery plays not well with text nodes as targets, so replace the target in that case with the parent
+				pageX: t[0].pageX,
+				pageY: t[0].pageY
+			})) : false);
+	
+	},	
 	_mouseInit: function() {
 		var self = this;
 
+		$.ui.touch && (this._eventNames = {
+			start: 'touchstart',
+			drag: 'touchmove',
+			stop: 'touchend'
+		});
+
 		this.element
-			.bind('mousedown.'+this.widgetName, function(event) {
-				return self._mouseDown(event);
+			.bind(this._eventNames.start+'.'+this.widgetName, function(event) {
+				return self._iPhoneEvent(event) && self._mouseDown(event);
 			})
 			.bind('click.'+this.widgetName, function(event) {
 				if(self._preventClickEvent) {
@@ -52,10 +80,10 @@ $.widget("ui.mouse", {
 		(this._mouseStarted && this._mouseUp(event));
 
 		this._mouseDownEvent = event;
-
+		
 		var self = this,
-			btnIsLeft = (event.which == 1),
-			elIsCancel = (typeof this.options.cancel == "string" ? $(event.target).parents().add(event.target).filter(this.options.cancel).length : false);
+			btnIsLeft = (event.which == 1 || $.ui.touch),
+			elIsCancel = (typeof this.options.cancel == "string" ? (event.target.nodeType == 1 ? $(event.target).parents().add(event.target).filter(this.options.cancel).length : $(event.target).parents().filter(this.options.cancel).length) : false);
 		if (!btnIsLeft || elIsCancel || !this._mouseCapture(event)) {
 			return true;
 		}
@@ -77,19 +105,19 @@ $.widget("ui.mouse", {
 
 		// these delegates are required to keep context
 		this._mouseMoveDelegate = function(event) {
-			return self._mouseMove(event);
+			return self._iPhoneEvent(event) && self._mouseMove(event);
 		};
 		this._mouseUpDelegate = function(event) {
-			return self._mouseUp(event);
+			return self._iPhoneEvent(event) && self._mouseUp(event);
 		};
 		$(document)
-			.bind('mousemove.'+this.widgetName, this._mouseMoveDelegate)
-			.bind('mouseup.'+this.widgetName, this._mouseUpDelegate);
+			.bind(this._eventNames.drag+'.'+this.widgetName, this._mouseMoveDelegate)
+			.bind(this._eventNames.stop+'.'+this.widgetName, this._mouseUpDelegate);
 
 		// preventDefault() is used to prevent the selection of text here -
 		// however, in Safari, this causes select boxes not to be selectable
 		// anymore, so this fix is needed
-		($.browser.safari || event.preventDefault());
+		(($.browser.safari && !$.ui.touch) || event.preventDefault());
 
 		event.originalEvent.mouseHandled = true;
 		return true;
@@ -117,13 +145,18 @@ $.widget("ui.mouse", {
 
 	_mouseUp: function(event) {
 		$(document)
-			.unbind('mousemove.'+this.widgetName, this._mouseMoveDelegate)
-			.unbind('mouseup.'+this.widgetName, this._mouseUpDelegate);
+			.unbind(this._eventNames.drag+'.'+this.widgetName, this._mouseMoveDelegate)
+			.unbind(this._eventNames.stop+'.'+this.widgetName, this._mouseUpDelegate);
 
 		if (this._mouseStarted) {
 			this._mouseStarted = false;
 			this._preventClickEvent = (event.target == this._mouseDownEvent.target);
 			this._mouseStop(event);
+		} else {
+			if($.ui.touch) { // stopping propagation on touchstop is preventing the click event, which is bad..TODO: Make this more awesome like a real event on the target
+				var event = $.extend(jQuery.Event('click'), { target: this._prevEvent.target, pageX: this._prevEvent.pageX, pageY: this._prevEvent.pageY });
+				$(document).trigger(event);
+			}
 		}
 
 		return false;
